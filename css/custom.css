@@ -1,0 +1,194 @@
+/* LLM_Learn custom visual layer: responsive cards + restrained glass effects. */
+:root {
+  --llm-glass: rgba(255, 255, 255, 0.82);
+  --llm-glass-strong: rgba(255, 255, 255, 0.91);
+  --llm-border: rgba(111, 170, 220, 0.28);
+  --llm-shadow: 0 18px 44px rgba(12, 32, 64, 0.16);
+}
+
+[data-theme='dark'] {
+  --llm-glass: rgba(20, 30, 52, 0.78);
+  --llm-glass-strong: rgba(18, 28, 48, 0.9);
+  --llm-border: rgba(116, 178, 230, 0.22);
+  --llm-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+}
+
+/* 全站背景保留质感，但不干扰阅读。 */
+#web_bg {
+  filter: saturate(0.82) brightness(1.08);
+}
+
+[data-theme='dark'] #web_bg {
+  filter: saturate(0.72) brightness(0.48);
+}
+
+/* 顶部主视觉：在背景图与文字之间加入真正的 backdrop blur。 */
+#page-header:not(.not-top-img)::before {
+  z-index: 0;
+  background: linear-gradient(135deg, rgba(6, 18, 45, 0.45), rgba(32, 73, 124, 0.2));
+  -webkit-backdrop-filter: blur(5px) saturate(0.92);
+  backdrop-filter: blur(5px) saturate(0.92);
+}
+
+#page-header #nav,
+#page-header #site-info,
+#page-header #page-site-info,
+#page-header #post-info,
+#page-header #scroll-down {
+  z-index: 1;
+}
+
+#page-header.full_page #site-title {
+  letter-spacing: 0.055em;
+  text-shadow: 0 4px 20px rgba(2, 10, 30, 0.5);
+}
+
+#page-header.full_page #site-subtitle {
+  margin-top: 0.65rem;
+  text-shadow: 0 3px 16px rgba(2, 10, 30, 0.56);
+}
+
+/* 固定横向顶栏保持玻璃质感和足够对比度。 */
+#page-header.fixed #nav,
+#page-header.nav-fixed #nav,
+#page-header.not-top-img #nav {
+  background: rgba(248, 251, 255, 0.78);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.34);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  backdrop-filter: blur(14px) saturate(1.25);
+}
+
+[data-theme='dark'] #page-header.fixed #nav,
+[data-theme='dark'] #page-header.nav-fixed #nav,
+[data-theme='dark'] #page-header.not-top-img #nav {
+  background: rgba(12, 21, 40, 0.8);
+}
+
+@media screen and (min-width: 769px) {
+  /* 菜单以视口中心为基准，不受左侧站点名宽度影响。 */
+  #page-header #nav:not(.hide-menu) #menus {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap;
+  }
+
+  #page-header #menus .menus_items {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.2rem;
+  }
+
+  #page-header #menus .site-page {
+    border-radius: 999px;
+    padding: 0.35rem 0.72rem;
+    transition: background-color 0.2s ease, transform 0.2s ease;
+  }
+
+  #page-header #menus .site-page:hover {
+    background: rgba(73, 177, 245, 0.16);
+    transform: translateY(-1px);
+  }
+}
+
+/* 首页保留右侧信息栏，文章区以 3/2/1 响应式网格展示。 */
+#page-header.full_page + #content-inner {
+  max-width: 1440px;
+}
+
+#page-header.full_page + #content-inner #recent-posts .recent-post-items {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+}
+
+#page-header.full_page + #content-inner #recent-posts .recent-post-item {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 430px;
+  margin-bottom: 0;
+  border: 1px solid var(--llm-border);
+  border-radius: 22px;
+  background: var(--llm-glass);
+  box-shadow: var(--llm-shadow);
+  -webkit-backdrop-filter: blur(15px) saturate(1.12);
+  backdrop-filter: blur(15px) saturate(1.12);
+  transform: translateY(0);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+#page-header.full_page + #content-inner #recent-posts .recent-post-item:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 24px 52px rgba(12, 32, 64, 0.22);
+}
+
+#page-header.full_page + #content-inner #recent-posts .post_cover {
+  order: 0;
+  width: 100%;
+  height: 205px;
+}
+
+#page-header.full_page + #content-inner #recent-posts .post_cover img,
+#page-header.full_page + #content-inner #recent-posts .post_cover .post-bg {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+#page-header.full_page + #content-inner #recent-posts .recent-post-info,
+#page-header.full_page + #content-inner #recent-posts .recent-post-info.no-cover {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: 100%;
+  padding: 25px 25px 28px;
+}
+
+#page-header.full_page + #content-inner #recent-posts .article-title {
+  font-size: 1.32rem;
+}
+
+#page-header.full_page + #content-inner #recent-posts .content {
+  margin-top: 0.7rem;
+  -webkit-line-clamp: 4;
+}
+
+/* 正文、分类列表和侧栏统一为克制的磨砂卡片。 */
+#content-inner > div:first-child:not(.nc),
+#aside-content .card-widget {
+  border: 1px solid var(--llm-border);
+  background: var(--llm-glass-strong);
+  box-shadow: var(--llm-shadow);
+  -webkit-backdrop-filter: blur(14px) saturate(1.08);
+  backdrop-filter: blur(14px) saturate(1.08);
+}
+
+@media screen and (max-width: 1100px) {
+  #page-header.full_page + #content-inner #recent-posts .recent-post-items {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media screen and (max-width: 700px) {
+  #page-header.full_page + #content-inner #recent-posts .recent-post-items {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  #page-header.full_page + #content-inner #recent-posts .recent-post-item {
+    min-height: 0;
+  }
+
+  #page-header.full_page + #content-inner #recent-posts .post_cover {
+    height: 220px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #page-header.full_page + #content-inner #recent-posts .recent-post-item,
+  #page-header #menus .site-page {
+    transition: none;
+  }
+}

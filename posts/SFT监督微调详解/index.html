@@ -1,0 +1,353 @@
+<!DOCTYPE html><html lang="zh-CN" data-theme="light"><head><meta charset="UTF-8"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1.0,viewport-fit=cover"><title>SFT 监督微调详解：大模型是怎样学会回答问题的 | LLM_Learn</title><meta name="author" content="LLM_Learn"><meta name="copyright" content="LLM_Learn"><meta name="format-detection" content="telephone=no"><meta name="theme-color" content="#ffffff"><meta name="description" content="从训练数据、Teacher Forcing 和交叉熵损失出发，通俗理解大语言模型监督微调的流程、公式与常见误区。">
+<meta property="og:type" content="article">
+<meta property="og:title" content="SFT 监督微调详解：大模型是怎样学会回答问题的">
+<meta property="og:url" content="https://shuita2333.github.io/LLMBlog/posts/SFT%E7%9B%91%E7%9D%A3%E5%BE%AE%E8%B0%83%E8%AF%A6%E8%A7%A3/index.html">
+<meta property="og:site_name" content="LLM_Learn">
+<meta property="og:description" content="从训练数据、Teacher Forcing 和交叉熵损失出发，通俗理解大语言模型监督微调的流程、公式与常见误区。">
+<meta property="og:locale" content="zh_CN">
+<meta property="og:image" content="https://shuita2333.github.io/LLMBlog/img/blog/category-training.png">
+<meta property="article:published_time" content="2026-08-27T14:10:00.000Z">
+<meta property="article:modified_time" content="2026-08-27T14:10:00.000Z">
+<meta property="article:author" content="LLM_Learn">
+<meta property="article:tag" content="SFT">
+<meta property="article:tag" content="后训练">
+<meta property="article:tag" content="指令微调">
+<meta property="article:tag" content="模型训练">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:image" content="https://shuita2333.github.io/LLMBlog/img/blog/category-training.png"><script type="application/ld+json">{
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  "headline": "SFT 监督微调详解：大模型是怎样学会回答问题的",
+  "url": "https://shuita2333.github.io/LLMBlog/posts/SFT%E7%9B%91%E7%9D%A3%E5%BE%AE%E8%B0%83%E8%AF%A6%E8%A7%A3/",
+  "image": "https://shuita2333.github.io/LLMBlog/img/blog/category-training.png",
+  "datePublished": "2026-08-27T14:10:00.000Z",
+  "dateModified": "2026-08-27T14:10:00.000Z",
+  "author": [
+    {
+      "@type": "Person",
+      "name": "LLM_Learn",
+      "url": "https://shuita2333.github.io/LLMBlog"
+    }
+  ]
+}</script><link rel="shortcut icon" href="/LLMBlog/"><link rel="canonical" href="https://shuita2333.github.io/LLMBlog/posts/SFT%E7%9B%91%E7%9D%A3%E5%BE%AE%E8%B0%83%E8%AF%A6%E8%A7%A3/index.html"><link rel="preconnect" href="//cdn.jsdelivr.net"/><link rel="stylesheet" href="/LLMBlog/css/index.css?v=5.7.0"><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@7.3.1/css/all.min.css"><script>
+    (() => {
+      
+    const saveToLocal = {
+      set: (key, value, ttl) => {
+        const data = { value }
+
+        if (ttl != null) {
+          data.expiry = Date.now() + ttl * 86400000
+        }
+
+        localStorage.setItem(key, JSON.stringify(data))
+      },
+      get: key => {
+        const itemStr = localStorage.getItem(key)
+        if (!itemStr) return
+
+        try {
+          const data = JSON.parse(itemStr)
+
+          if (data.expiry && Date.now() > data.expiry) {
+            localStorage.removeItem(key)
+            return
+          }
+
+          return data.value
+        } catch {
+          localStorage.removeItem(key)
+        }
+      }
+    }
+
+    const scriptCache = new Map()
+    const cssCache = new Map()
+    window.btf = {
+      saveToLocal,
+      getScript: (url, attr = {}) => {
+        if (scriptCache.has(url)) {
+          return scriptCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const script = document.createElement('script')
+
+          script.src = url
+          script.async = true
+
+          for (const key in attr) {
+            script.setAttribute(key, attr[key])
+          }
+
+          script.onload = resolve
+          script.onerror = reject
+
+          document.head.appendChild(script)
+        })
+
+        scriptCache.set(url, promise)
+
+        return promise
+      },
+      getCSS: (url, id) => {
+        if (cssCache.has(url)) {
+          return cssCache.get(url)
+        }
+
+        const promise = new Promise((resolve, reject) => {
+          const link = document.createElement('link')
+
+          link.rel = 'stylesheet'
+          link.href = url
+
+          if (id) {
+            link.id = id
+          }
+
+          link.onload = resolve
+          link.onerror = reject
+
+          document.head.appendChild(link)
+        })
+
+        cssCache.set(url, promise)
+
+        return promise
+      },
+      addGlobalFn: (key, fn, name = false, parent = window) => {
+        if (!false && key.startsWith('pjax')) return
+        const globalFn = parent.globalFn || {}
+        globalFn[key] = globalFn[key] || {}
+        globalFn[key][name || Object.keys(globalFn[key]).length] = fn
+        parent.globalFn = globalFn
+      }
+    }
+  
+      
+      const metaThemeColor = document.querySelector('meta[name="theme-color"]')
+      const activateDarkMode = () => {
+        document.documentElement.dataset.theme = 'dark'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#0d0d0d')
+        }
+      }
+      const activateLightMode = () => {
+        document.documentElement.dataset.theme = 'light'
+        if (metaThemeColor !== null) {
+          metaThemeColor.setAttribute('content', '#ffffff')
+        }
+      }
+
+      btf.activateDarkMode = activateDarkMode
+      btf.activateLightMode = activateLightMode
+
+      const theme = saveToLocal.get('theme')
+    
+          theme === 'dark' ? activateDarkMode() : theme === 'light' ? activateLightMode() : null
+        
+      
+      const asideStatus = saveToLocal.get('aside-status')
+      if (asideStatus !== undefined) {
+        document.documentElement.classList.toggle('hide-aside', asideStatus === 'hide')
+      }
+    
+      
+    const detectApple = () => {
+      if (/iPad|iPhone|iPod|Macintosh/.test(navigator.userAgent)) {
+        document.documentElement.classList.add('apple')
+      }
+    }
+    detectApple()
+  
+    })()
+  </script><script>const GLOBAL_CONFIG = {
+  root: '/LLMBlog/',
+  algolia: undefined,
+  localSearch: undefined,
+  translate: undefined,
+  highlight: {"plugin":"highlight.js","highlightCopy":true,"highlightLang":true,"highlightHeightLimit":false,"highlightFullpage":true,"highlightMacStyle":true},
+  copy: {
+    success: '复制成功',
+    error: '复制失败',
+    noSupport: '浏览器不支持'
+  },
+  relativeDate: {
+    homepage: false,
+    post: false
+  },
+  runtime: '',
+  dateSuffix: {
+    just: '刚刚',
+    min: '分钟前',
+    hour: '小时前',
+    day: '天前',
+    month: '个月前'
+  },
+  copyright: undefined,
+  lightbox: 'null',
+  Snackbar: undefined,
+  infinitegrid: {
+    js: 'https://cdn.jsdelivr.net/npm/@egjs/infinitegrid@4.13.0/dist/infinitegrid.min.js',
+    buttonText: '加载更多'
+  },
+  isPhotoFigcaption: false,
+  islazyloadPlugin: false,
+  isAnchor: false,
+  percent: {
+    toc: true,
+    rightside: false,
+  },
+  autoDarkmode: false
+}</script><script id="config-diff">var GLOBAL_CONFIG_SITE = {
+  title: 'SFT 监督微调详解：大模型是怎样学会回答问题的',
+  isHighlightShrink: false,
+  isToc: true,
+  pageType: 'post'
+}</script><link rel="stylesheet" href="/css/custom.css"><meta name="generator" content="Hexo 8.1.2"></head><body><div class="bg-animation" id="web_bg" style="background-image: url(/LLMBlog/img/blog/site-background.png);"></div><div id="sidebar"><div id="menu-mask"></div><div id="sidebar-menus"><div class="avatar-img text-center"><img src="/LLMBlog/img/avatar.svg" onerror="this.onerror=null;this.src='/LLMBlog/img/friend_404.gif'" alt="avatar"/></div><div class="site-data text-center"><a href="/LLMBlog/archives/"><div class="headline">文章</div><div class="length-num">12</div></a><a href="/LLMBlog/tags/"><div class="headline">标签</div><div class="length-num">27</div></a><a href="/LLMBlog/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div><div class="menus_items"><div class="menus_item"><a class="site-page" href="/LLMBlog/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/LLMBlog/archives/"><i class="fa-fw fas fa-clock-rotate-left"></i><span> 时间线</span></a></div><div class="menus_item"><a class="site-page" href="/LLMBlog/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/LLMBlog/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/LLMBlog/about/"><i class="fa-fw fas fa-user"></i><span> 关于</span></a></div></div></div></div><div class="post" id="body-wrap"><header class="post-bg fixed" id="page-header" style="background-image: url(/LLMBlog/img/blog/category-training.png);"><nav id="nav"><span id="blog-info"><a class="nav-site-title" href="/LLMBlog/"><span class="site-name">LLM_Learn</span></a><a class="nav-page-title" href="/LLMBlog/"><span class="site-name">SFT 监督微调详解：大模型是怎样学会回答问题的</span><span class="site-name"><i class="fa-solid fa-circle-arrow-left"></i><span>  返回首页</span></span></a></span><div id="menus"><div class="menus_items"><div class="menus_item"><a class="site-page" href="/LLMBlog/"><i class="fa-fw fas fa-home"></i><span> 首页</span></a></div><div class="menus_item"><a class="site-page" href="/LLMBlog/archives/"><i class="fa-fw fas fa-clock-rotate-left"></i><span> 时间线</span></a></div><div class="menus_item"><a class="site-page" href="/LLMBlog/tags/"><i class="fa-fw fas fa-tags"></i><span> 标签</span></a></div><div class="menus_item"><a class="site-page" href="/LLMBlog/categories/"><i class="fa-fw fas fa-folder-open"></i><span> 分类</span></a></div><div class="menus_item"><a class="site-page" href="/LLMBlog/about/"><i class="fa-fw fas fa-user"></i><span> 关于</span></a></div></div><div id="toggle-menu"><span class="site-page"><i class="fas fa-bars fa-fw"></i></span></div></div></nav><div id="post-info"><h1 class="post-title">SFT 监督微调详解：大模型是怎样学会回答问题的</h1><div id="post-meta"><div class="meta-firstline"><span class="post-meta-date"><i class="far fa-calendar-alt fa-fw post-meta-icon"></i><span class="post-meta-label">发表于</span><time class="post-meta-date-created" datetime="2026-08-27T14:10:00.000Z" title="发表于 2026-08-27 22:10:00">2026-08-27</time><span class="post-meta-separator">|</span><i class="fas fa-history fa-fw post-meta-icon"></i><span class="post-meta-label">更新于</span><time class="post-meta-date-updated" datetime="2026-08-27T14:10:00.000Z" title="更新于 2026-08-27 22:10:00">2026-08-27</time></span><span class="post-meta-categories"><span class="post-meta-separator">|</span><i class="fas fa-inbox fa-fw post-meta-icon"></i><a class="post-meta-categories" href="/LLMBlog/categories/%E6%A8%A1%E5%9E%8B%E8%AE%AD%E7%BB%83/">模型训练</a></span></div><div class="meta-secondline"></div></div></div></header><main class="layout" id="content-inner"><div id="post"><article class="container post-content" id="article-container"><p>如果把预训练模型比作一个“读过很多书，但不知道该怎么和人聊天的人”，那么 SFT 做的事情，就是拿出一批标准示范告诉它：<strong>遇到这种问题，应该像这样回答。</strong></p>
+<p>SFT 的全称是 Supervised Fine-Tuning，即监督微调。它可能是后训练中最朴素的方法，但几乎所有聊天模型都绕不开它。后面的 PPO、GRPO、DPO 和 OPD 虽然目标不同，也常常从一个 SFT 模型开始。</p>
+<h2 id="先看一条训练数据"><a href="#先看一条训练数据" class="headerlink" title="先看一条训练数据"></a>先看一条训练数据</h2><p>一条最简单的 SFT 数据包含输入 <script type="math/tex">x</script> 和目标回答 <script type="math/tex">y</script>：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br></pre></td><td class="code"><pre><span class="line">输入 x：请用一句话解释什么是过拟合。</span><br><span class="line">回答 y：过拟合是模型过度记住训练数据，以至于在新数据上表现变差。</span><br></pre></td></tr></table></figure>
+
+<p>在聊天模型中，它通常会被套入对话模板：</p>
+<figure class="highlight text"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><span class="line">&lt;system&gt;你是一个耐心的 AI 助手。&lt;/system&gt;</span><br><span class="line">&lt;user&gt;请用一句话解释什么是过拟合。&lt;/user&gt;</span><br><span class="line">&lt;assistant&gt;过拟合是模型过度记住训练数据，以至于在新数据上表现变差。&lt;/assistant&gt;</span><br></pre></td></tr></table></figure>
+
+<p>训练时一般只要求模型学习 assistant 的回答，system 和 user 部分只是条件。也就是说，输入部分参与前向计算，但不一定参与损失计算。</p>
+<h2 id="SFT-本质上仍是“预测下一个-token”"><a href="#SFT-本质上仍是“预测下一个-token”" class="headerlink" title="SFT 本质上仍是“预测下一个 token”"></a>SFT 本质上仍是“预测下一个 token”</h2><p>设提示词是 <script type="math/tex">x</script>，标准回答由 <script type="math/tex">T</script> 个 token 组成：</p>
+<script type="math/tex; mode=display">y=(y_1,y_2,\ldots,y_T)</script>
+<p>自回归语言模型把整段回答的概率拆成每一步条件概率的乘积：</p>
+<script type="math/tex; mode=display">\pi_\theta(y\mid x)=\prod_{t=1}^{T}\pi_\theta(y_t\mid x,y_{<t})</script>
+<p>其中：</p>
+<ul>
+<li><script type="math/tex">\pi_\theta</script> 是当前模型，<script type="math/tex">\theta</script> 是待更新的参数；</li>
+<li><script type="math/tex">y_t</script> 是第 <script type="math/tex">t</script> 个正确 token；</li>
+<li><script type="math/tex">y_{<t}</script> 是它前面的所有正确 token。</li>
+</ul>
+<p>SFT 希望标准回答的概率越大越好，所以最大化对数似然：</p>
+<script type="math/tex; mode=display">\max_\theta\ \log \pi_\theta(y\mid x)</script>
+<p>训练框架通常执行梯度下降，因此写成负对数似然损失：</p>
+<script type="math/tex; mode=display">\begin{aligned}
+\mathcal{L}_{\mathrm{SFT}}(\theta)
+&=-\mathbb{E}_{(x,y)\sim\mathcal D}\left[\log\pi_\theta(y\mid x)\right]\\
+&=-\mathbb{E}_{(x,y)\sim\mathcal D}\left[\sum_{t=1}^{T}\log\pi_\theta(y_t\mid x,y_{<t})\right].
+\end{aligned}</script>
+<p>这就是 SFT 最核心的公式。它也可以看成逐 token 的交叉熵：正确 token 的预测概率越低，惩罚越大。</p>
+<p>举个极端例子：正确答案的下一个 token 是“北京”。模型给它的概率为 0.8，损失是 <script type="math/tex">-\log 0.8\approx 0.22</script>；如果只给 0.01，损失就变成 <script type="math/tex">-\log 0.01\approx 4.61</script>。模型会优先修正这些“自信地答错”的位置。</p>
+<h2 id="为什么输入-token-通常要遮住"><a href="#为什么输入-token-通常要遮住" class="headerlink" title="为什么输入 token 通常要遮住"></a>为什么输入 token 通常要遮住</h2><p>将完整序列记为 <script type="math/tex">z=[x;y]</script>，可以为每个位置设置掩码 <script type="math/tex">m_t</script>：</p>
+<p>其中掩码取值为：<script type="math/tex">m_t=0</script> 表示提示词或填充符，不计算损失；<script type="math/tex">m_t=1</script> 表示 assistant 回答，需要学习。掩码损失为：</p>
+<script type="math/tex; mode=display">\mathcal{L}_{\mathrm{masked}}
+=-\frac{\sum_t m_t\log\pi_\theta(z_t\mid z_{<t})}{\sum_t m_t}.</script>
+<p>如果不做掩码，模型也会花力气复述 system 和 user 文本。某些继续预训练式微调会对整段文本计算损失，但常规对话 SFT 更关心模型回答，因此通常只训练 completion 部分。</p>
+<p>多轮对话还有两种常见选择：只训练最后一轮 assistant，或者训练所有 assistant 轮次。两者没有绝对对错，但必须与数据模板和训练代码保持一致。</p>
+<h2 id="Teacher-Forcing：训练时有人把正确答案递到手边"><a href="#Teacher-Forcing：训练时有人把正确答案递到手边" class="headerlink" title="Teacher Forcing：训练时有人把正确答案递到手边"></a>Teacher Forcing：训练时有人把正确答案递到手边</h2><p>注意前面的条件是 <script type="math/tex">y_{<t}</script>，即标准答案的真实前缀，而不是模型刚刚自己生成的前缀。这种训练方式叫 Teacher Forcing。</p>
+<p>它的好处是高效：一段回答的所有位置可以并行计算损失。问题是训练与推理存在差异：</p>
+<ul>
+<li>训练时，第 20 个 token 前面永远是标准答案；</li>
+<li>推理时，如果第 5 个 token 已经生成错了，后面面对的就是一个训练集中少见的错误前缀。</li>
+</ul>
+<p>这通常被称为 exposure bias。SFT 只在固定数据分布上学习，也是后来在线强化学习和 OPD 强调“让模型在自己走到的状态上学习”的原因之一。</p>
+<h2 id="一次完整的-SFT-是怎么做的"><a href="#一次完整的-SFT-是怎么做的" class="headerlink" title="一次完整的 SFT 是怎么做的"></a>一次完整的 SFT 是怎么做的</h2><p>整个流程并不神秘：</p>
+<ol>
+<li>收集人工回答、业务数据或教师模型生成的高质量示范；</li>
+<li>清洗重复、错误、格式异常和相互冲突的样本；</li>
+<li>使用统一 chat template 拼接 system、user 和 assistant；</li>
+<li>分词并建立 label mask，只让目标回答产生损失；</li>
+<li>从基础模型加载权重，用全参数、LoRA 或 QLoRA 优化交叉熵；</li>
+<li>在独立验证集上检查任务能力、格式遵循和通用能力是否退化。</li>
+</ol>
+<p>这里要再强调一次：LoRA&#x2F;QLoRA 决定“更新哪些参数”，SFT 决定“优化什么损失”。因此“LoRA 和 SFT 选哪个”本身是一个错误问题，完全可以使用 LoRA 来执行 SFT。</p>
+<h2 id="SFT-到底学到了什么"><a href="#SFT-到底学到了什么" class="headerlink" title="SFT 到底学到了什么"></a>SFT 到底学到了什么</h2><p>SFT 最擅长三类事情：</p>
+<ul>
+<li><strong>激活已有能力</strong>：基础模型可能已经会翻译和写代码，只是不知道用户想让它做什么；</li>
+<li><strong>学习输出协议</strong>：例如 JSON、工具调用格式、角色语气和拒答模板；</li>
+<li><strong>注入任务示范</strong>：让模型模仿解题步骤、客服流程或特定写作风格。</li>
+</ul>
+<p>但“往模型里灌大量新知识”并不总是 SFT 的强项。若目标是吸收一个专业领域的大规模文本知识，继续预训练通常更自然；若目标是区分多个都能接受的回答哪个更好，偏好优化通常更合适。</p>
+<h2 id="三个容易踩的坑"><a href="#三个容易踩的坑" class="headerlink" title="三个容易踩的坑"></a>三个容易踩的坑</h2><h3 id="1-损失下降，不等于回答更好"><a href="#1-损失下降，不等于回答更好" class="headerlink" title="1. 损失下降，不等于回答更好"></a>1. 损失下降，不等于回答更好</h3><p>交叉熵衡量模型对标准答案的拟合程度。训练数据如果存在错误、模板单一或回答冗长，模型可能把这些问题学得非常好。最终仍要用任务指标和人工评测判断质量。</p>
+<h3 id="2-数据质量往往比数据量更重要"><a href="#2-数据质量往往比数据量更重要" class="headerlink" title="2. 数据质量往往比数据量更重要"></a>2. 数据质量往往比数据量更重要</h3><p>一批冲突样本会让模型不知道到底应该简洁还是详细、拒绝还是回答。高质量、覆盖合理的数据常常比简单堆量更有效。</p>
+<h3 id="3-一个问题可能有许多正确答案"><a href="#3-一个问题可能有许多正确答案" class="headerlink" title="3. 一个问题可能有许多正确答案"></a>3. 一个问题可能有许多正确答案</h3><p>SFT 会把数据中的一个回答当作目标。对于开放式写作，其他合理表达没有得到正向信号，甚至会因为概率归一化而被间接压低。DPO 等偏好方法不要求唯一标准答案，而是学习回答之间的相对优劣。</p>
+<h2 id="用一句话总结"><a href="#用一句话总结" class="headerlink" title="用一句话总结"></a>用一句话总结</h2><p>SFT 就是：<strong>在标准答案的正确前缀上，逐 token 提高标准答案的概率。</strong></p>
+<p>它简单、稳定、数据利用效率高，是把基础模型变成指令模型的第一步；它的局限也来自同一个地方——模型只会模仿数据给出的行为，不会主动探索数据之外更好的回答。</p>
+<h2 id="参考资料"><a href="#参考资料" class="headerlink" title="参考资料"></a>参考资料</h2><ul>
+<li><a target="_blank" rel="noopener" href="https://arxiv.org/abs/2203.02155">Training language models to follow instructions with human feedback</a></li>
+<li><a target="_blank" rel="noopener" href="https://arxiv.org/abs/2109.01652">Finetuned Language Models Are Zero-Shot Learners</a></li>
+<li><a target="_blank" rel="noopener" href="https://arxiv.org/abs/2401.01335">Self-Play Fine-Tuning Converts Weak Language Models to Strong Language Models</a></li>
+</ul>
+</article><div class="post-copyright"><div class="post-copyright__author"><span class="post-copyright-meta"><i class="fas fa-circle-user fa-fw"></i>文章作者: </span><span class="post-copyright-info"><a href="https://shuita2333.github.io/LLMBlog">LLM_Learn</a></span></div><div class="post-copyright__type"><span class="post-copyright-meta"><i class="fas fa-square-arrow-up-right fa-fw"></i>文章链接: </span><span class="post-copyright-info"><a href="https://shuita2333.github.io/LLMBlog/posts/SFT%E7%9B%91%E7%9D%A3%E5%BE%AE%E8%B0%83%E8%AF%A6%E8%A7%A3/">https://shuita2333.github.io/LLMBlog/posts/SFT%E7%9B%91%E7%9D%A3%E5%BE%AE%E8%B0%83%E8%AF%A6%E8%A7%A3/</a></span></div><div class="post-copyright__notice"><span class="post-copyright-meta"><i class="fas fa-circle-exclamation fa-fw"></i>版权声明: </span><span class="post-copyright-info">本博客所有文章除特别声明外，均采用 <a href="https://creativecommons.org/licenses/by-nc-sa/4.0/" target="_blank">CC BY-NC-SA 4.0</a> 许可协议。转载请注明来源 <a href="https://shuita2333.github.io/LLMBlog" target="_blank">LLM_Learn</a>！</span></div></div><div class="tag_share"><div class="post-meta__tag-list"><a class="post-meta__tags" href="/LLMBlog/tags/%E6%A8%A1%E5%9E%8B%E8%AE%AD%E7%BB%83/">模型训练</a><a class="post-meta__tags" href="/LLMBlog/tags/%E5%90%8E%E8%AE%AD%E7%BB%83/">后训练</a><a class="post-meta__tags" href="/LLMBlog/tags/SFT/">SFT</a><a class="post-meta__tags" href="/LLMBlog/tags/%E6%8C%87%E4%BB%A4%E5%BE%AE%E8%B0%83/">指令微调</a></div><div class="post-share"><div class="social-share" data-image="/LLMBlog/img/blog/category-training.png" data-sites="facebook,x,wechat,weibo,qq"></div><link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/css/share.min.css" media="print" onload="this.media='all'"><script src="https://cdn.jsdelivr.net/npm/butterfly-extsrc@1.1.6/sharejs/dist/js/social-share.min.js" defer></script></div></div><nav class="pagination-post" id="pagination"><a class="pagination-related" href="/LLMBlog/posts/PPO%E8%BF%91%E7%AB%AF%E7%AD%96%E7%95%A5%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="PPO 近端策略优化详解：RLHF 为什么需要四个模型"><img class="cover" src="/LLMBlog/img/blog/category-training.png" onerror="onerror=null;src='/LLMBlog/img/404.jpg'" alt="cover of previous post"><div class="info"><div class="info-1"><div class="info-item-1">上一篇</div><div class="info-item-2">PPO 近端策略优化详解：RLHF 为什么需要四个模型</div></div><div class="info-2"><div class="info-item-1">从策略梯度、奖励模型、优势函数和裁剪目标出发，通俗理解 PPO 在大语言模型 RLHF 中的训练流程与核心公式。</div></div></div></a><a class="pagination-related" href="/LLMBlog/posts/%E6%A8%A1%E5%9E%8B%E5%90%8E%E8%AE%AD%E7%BB%83%E6%96%B9%E6%B3%95%E6%A6%82%E8%A7%88/" title="模型后训练方法概览：从指令微调到强化学习"><img class="cover" src="/LLMBlog/img/blog/category-training.png" onerror="onerror=null;src='/LLMBlog/img/404.jpg'" alt="cover of next post"><div class="info text-right"><div class="info-1"><div class="info-item-1">下一篇</div><div class="info-item-2">模型后训练方法概览：从指令微调到强化学习</div></div><div class="info-2"><div class="info-item-1">梳理大语言模型后训练的主要技术路线、发展时间和代表模型，建立从继续预训练、SFT 到偏好优化与推理强化学习的整体框架。</div></div></div></a></nav><div class="relatedPosts"><div class="headline"><i class="fas fa-thumbs-up fa-fw"></i><span>相关推荐</span></div><div class="relatedPosts-list"><a class="pagination-related" href="/LLMBlog/posts/%E6%A8%A1%E5%9E%8B%E5%90%8E%E8%AE%AD%E7%BB%83%E6%96%B9%E6%B3%95%E6%A6%82%E8%A7%88/" title="模型后训练方法概览：从指令微调到强化学习"><img class="cover" src="/LLMBlog/img/blog/category-training.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-27</div><div class="info-item-2">模型后训练方法概览：从指令微调到强化学习</div></div><div class="info-2"><div class="info-item-1">梳理大语言模型后训练的主要技术路线、发展时间和代表模型，建立从继续预训练、SFT 到偏好优化与推理强化学习的整体框架。</div></div></div></a><a class="pagination-related" href="/LLMBlog/posts/DPO%E7%9B%B4%E6%8E%A5%E5%81%8F%E5%A5%BD%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="DPO 直接偏好优化详解：不用奖励模型，也能让模型学会偏好"><img class="cover" src="/LLMBlog/img/blog/category-training.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-27</div><div class="info-item-2">DPO 直接偏好优化详解：不用奖励模型，也能让模型学会偏好</div></div><div class="info-2"><div class="info-item-1">从 Bradley-Terry 偏好模型和带 KL 约束的 RLHF 目标出发，逐步推导 DPO 损失并解释各项含义。</div></div></div></a><a class="pagination-related" href="/LLMBlog/posts/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E5%90%8E%E8%AE%AD%E7%BB%83%E6%A1%86%E6%9E%B6%E9%80%89%E5%9E%8B/" title="大模型后训练框架选型：从 TRL 到 verl、OpenRLHF 与 NeMo RL"><img class="cover" src="/LLMBlog/img/blog/category-training.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-28</div><div class="info-item-2">大模型后训练框架选型：从 TRL 到 verl、OpenRLHF 与 NeMo RL</div></div><div class="info-2"><div class="info-item-1">从代码和工程角度比较 TRL、LLaMA-Factory、Axolotl、ms-swift、OpenRLHF、verl 与 NeMo RL，说明 SFT、DPO、PPO、GRPO、OPD 应该如何落地和选型。</div></div></div></a><a class="pagination-related" href="/LLMBlog/posts/OPD%E5%9C%A8%E7%BA%BF%E7%AD%96%E7%95%A5%E8%92%B8%E9%A6%8F%E8%AF%A6%E8%A7%A3/" title="OPD 在线策略蒸馏详解：让学生在自己走过的路上请教老师"><img class="cover" src="/LLMBlog/img/blog/category-training.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-27</div><div class="info-item-2">OPD 在线策略蒸馏详解：让学生在自己走过的路上请教老师</div></div><div class="info-2"><div class="info-item-1">从离线蒸馏的分布错位出发，通俗理解 On-Policy Distillation 的学生采样、教师逐 token 监督、KL 损失及工程限制。</div></div></div></a><a class="pagination-related" href="/LLMBlog/posts/PPO%E8%BF%91%E7%AB%AF%E7%AD%96%E7%95%A5%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="PPO 近端策略优化详解：RLHF 为什么需要四个模型"><img class="cover" src="/LLMBlog/img/blog/category-training.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-27</div><div class="info-item-2">PPO 近端策略优化详解：RLHF 为什么需要四个模型</div></div><div class="info-2"><div class="info-item-1">从策略梯度、奖励模型、优势函数和裁剪目标出发，通俗理解 PPO 在大语言模型 RLHF 中的训练流程与核心公式。</div></div></div></a><a class="pagination-related" href="/LLMBlog/posts/GRPO%E7%BB%84%E7%9B%B8%E5%AF%B9%E7%AD%96%E7%95%A5%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="GRPO 组相对策略优化详解：不用 Critic，模型怎样判断谁答得更好"><img class="cover" src="/LLMBlog/img/blog/category-training.png" alt="cover"><div class="info text-center"><div class="info-1"><div class="info-item-1"><i class="far fa-calendar-alt fa-fw"></i> 2026-08-27</div><div class="info-item-2">GRPO 组相对策略优化详解：不用 Critic，模型怎样判断谁答得更好</div></div><div class="info-2"><div class="info-item-1">从组内采样、相对优势、PPO 裁剪和 KL 约束出发，通俗理解 GRPO 的训练流程、损失函数及其与 PPO 的区别。</div></div></div></a></div></div></div><div class="aside-content" id="aside-content"><div class="card-widget card-info text-center"><div class="avatar-img"><img src="/LLMBlog/img/avatar.svg" onerror="this.onerror=null;this.src='/LLMBlog/img/friend_404.gif'" alt="avatar"/></div><div class="author-info-name">LLM_Learn</div><div class="author-info-description">大语言模型学习与实践</div><div class="site-data"><a href="/LLMBlog/archives/"><div class="headline">文章</div><div class="length-num">12</div></a><a href="/LLMBlog/tags/"><div class="headline">标签</div><div class="length-num">27</div></a><a href="/LLMBlog/categories/"><div class="headline">分类</div><div class="length-num">3</div></a></div></div><div class="card-widget card-announcement"><div class="item-headline"><i class="fas fa-bullhorn fa-shake"></i><span>公告</span></div><div class="announcement_content">欢迎来到 LLM_Learn</div></div><div class="sticky_layout"><div class="card-widget" id="card-toc"><div class="item-headline"><i class="fas fa-stream"></i><span>目录</span><span class="toc-percentage"></span></div><div class="toc-content"><ol class="toc"><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%85%88%E7%9C%8B%E4%B8%80%E6%9D%A1%E8%AE%AD%E7%BB%83%E6%95%B0%E6%8D%AE"><span class="toc-number">1.</span> <span class="toc-text">先看一条训练数据</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SFT-%E6%9C%AC%E8%B4%A8%E4%B8%8A%E4%BB%8D%E6%98%AF%E2%80%9C%E9%A2%84%E6%B5%8B%E4%B8%8B%E4%B8%80%E4%B8%AA-token%E2%80%9D"><span class="toc-number">2.</span> <span class="toc-text">SFT 本质上仍是“预测下一个 token”</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%BA%E4%BB%80%E4%B9%88%E8%BE%93%E5%85%A5-token-%E9%80%9A%E5%B8%B8%E8%A6%81%E9%81%AE%E4%BD%8F"><span class="toc-number">3.</span> <span class="toc-text">为什么输入 token 通常要遮住</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#Teacher-Forcing%EF%BC%9A%E8%AE%AD%E7%BB%83%E6%97%B6%E6%9C%89%E4%BA%BA%E6%8A%8A%E6%AD%A3%E7%A1%AE%E7%AD%94%E6%A1%88%E9%80%92%E5%88%B0%E6%89%8B%E8%BE%B9"><span class="toc-number">4.</span> <span class="toc-text">Teacher Forcing：训练时有人把正确答案递到手边</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%80%E6%AC%A1%E5%AE%8C%E6%95%B4%E7%9A%84-SFT-%E6%98%AF%E6%80%8E%E4%B9%88%E5%81%9A%E7%9A%84"><span class="toc-number">5.</span> <span class="toc-text">一次完整的 SFT 是怎么做的</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#SFT-%E5%88%B0%E5%BA%95%E5%AD%A6%E5%88%B0%E4%BA%86%E4%BB%80%E4%B9%88"><span class="toc-number">6.</span> <span class="toc-text">SFT 到底学到了什么</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E4%B8%89%E4%B8%AA%E5%AE%B9%E6%98%93%E8%B8%A9%E7%9A%84%E5%9D%91"><span class="toc-number">7.</span> <span class="toc-text">三个容易踩的坑</span></a><ol class="toc-child"><li class="toc-item toc-level-3"><a class="toc-link" href="#1-%E6%8D%9F%E5%A4%B1%E4%B8%8B%E9%99%8D%EF%BC%8C%E4%B8%8D%E7%AD%89%E4%BA%8E%E5%9B%9E%E7%AD%94%E6%9B%B4%E5%A5%BD"><span class="toc-number">7.1.</span> <span class="toc-text">1. 损失下降，不等于回答更好</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#2-%E6%95%B0%E6%8D%AE%E8%B4%A8%E9%87%8F%E5%BE%80%E5%BE%80%E6%AF%94%E6%95%B0%E6%8D%AE%E9%87%8F%E6%9B%B4%E9%87%8D%E8%A6%81"><span class="toc-number">7.2.</span> <span class="toc-text">2. 数据质量往往比数据量更重要</span></a></li><li class="toc-item toc-level-3"><a class="toc-link" href="#3-%E4%B8%80%E4%B8%AA%E9%97%AE%E9%A2%98%E5%8F%AF%E8%83%BD%E6%9C%89%E8%AE%B8%E5%A4%9A%E6%AD%A3%E7%A1%AE%E7%AD%94%E6%A1%88"><span class="toc-number">7.3.</span> <span class="toc-text">3. 一个问题可能有许多正确答案</span></a></li></ol></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E7%94%A8%E4%B8%80%E5%8F%A5%E8%AF%9D%E6%80%BB%E7%BB%93"><span class="toc-number">8.</span> <span class="toc-text">用一句话总结</span></a></li><li class="toc-item toc-level-2"><a class="toc-link" href="#%E5%8F%82%E8%80%83%E8%B5%84%E6%96%99"><span class="toc-number">9.</span> <span class="toc-text">参考资料</span></a></li></ol></div></div><div class="card-widget card-recent-post"><div class="item-headline"><i class="fas fa-history"></i><span>最新文章</span></div><div class="aside-list"><div class="aside-list-item"><a class="thumbnail" href="/LLMBlog/posts/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E5%90%8E%E8%AE%AD%E7%BB%83%E6%A1%86%E6%9E%B6%E9%80%89%E5%9E%8B/" title="大模型后训练框架选型：从 TRL 到 verl、OpenRLHF 与 NeMo RL"><img src="/LLMBlog/img/blog/category-training.png" onerror="this.onerror=null;this.src='/LLMBlog/img/404.jpg'" alt="大模型后训练框架选型：从 TRL 到 verl、OpenRLHF 与 NeMo RL"/></a><div class="content"><a class="title" href="/LLMBlog/posts/%E5%A4%A7%E6%A8%A1%E5%9E%8B%E5%90%8E%E8%AE%AD%E7%BB%83%E6%A1%86%E6%9E%B6%E9%80%89%E5%9E%8B/" title="大模型后训练框架选型：从 TRL 到 verl、OpenRLHF 与 NeMo RL">大模型后训练框架选型：从 TRL 到 verl、OpenRLHF 与 NeMo RL</a><time datetime="2026-08-27T16:10:00.000Z" title="发表于 2026-08-28 00:10:00">2026-08-28</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/LLMBlog/posts/DQN%E6%B7%B1%E5%BA%A6Q%E7%BD%91%E7%BB%9C%E8%AF%A6%E8%A7%A3/" title="DQN 深度 Q 网络详解：神经网络如何学会玩游戏"><img src="/LLMBlog/img/blog/category-training.png" onerror="this.onerror=null;this.src='/LLMBlog/img/404.jpg'" alt="DQN 深度 Q 网络详解：神经网络如何学会玩游戏"/></a><div class="content"><a class="title" href="/LLMBlog/posts/DQN%E6%B7%B1%E5%BA%A6Q%E7%BD%91%E7%BB%9C%E8%AF%A6%E8%A7%A3/" title="DQN 深度 Q 网络详解：神经网络如何学会玩游戏">DQN 深度 Q 网络详解：神经网络如何学会玩游戏</a><time datetime="2026-08-27T15:00:00.000Z" title="发表于 2026-08-27 23:00:00">2026-08-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/LLMBlog/posts/OPD%E5%9C%A8%E7%BA%BF%E7%AD%96%E7%95%A5%E8%92%B8%E9%A6%8F%E8%AF%A6%E8%A7%A3/" title="OPD 在线策略蒸馏详解：让学生在自己走过的路上请教老师"><img src="/LLMBlog/img/blog/category-training.png" onerror="this.onerror=null;this.src='/LLMBlog/img/404.jpg'" alt="OPD 在线策略蒸馏详解：让学生在自己走过的路上请教老师"/></a><div class="content"><a class="title" href="/LLMBlog/posts/OPD%E5%9C%A8%E7%BA%BF%E7%AD%96%E7%95%A5%E8%92%B8%E9%A6%8F%E8%AF%A6%E8%A7%A3/" title="OPD 在线策略蒸馏详解：让学生在自己走过的路上请教老师">OPD 在线策略蒸馏详解：让学生在自己走过的路上请教老师</a><time datetime="2026-08-27T14:50:00.000Z" title="发表于 2026-08-27 22:50:00">2026-08-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/LLMBlog/posts/DPO%E7%9B%B4%E6%8E%A5%E5%81%8F%E5%A5%BD%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="DPO 直接偏好优化详解：不用奖励模型，也能让模型学会偏好"><img src="/LLMBlog/img/blog/category-training.png" onerror="this.onerror=null;this.src='/LLMBlog/img/404.jpg'" alt="DPO 直接偏好优化详解：不用奖励模型，也能让模型学会偏好"/></a><div class="content"><a class="title" href="/LLMBlog/posts/DPO%E7%9B%B4%E6%8E%A5%E5%81%8F%E5%A5%BD%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="DPO 直接偏好优化详解：不用奖励模型，也能让模型学会偏好">DPO 直接偏好优化详解：不用奖励模型，也能让模型学会偏好</a><time datetime="2026-08-27T14:40:00.000Z" title="发表于 2026-08-27 22:40:00">2026-08-27</time></div></div><div class="aside-list-item"><a class="thumbnail" href="/LLMBlog/posts/GRPO%E7%BB%84%E7%9B%B8%E5%AF%B9%E7%AD%96%E7%95%A5%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="GRPO 组相对策略优化详解：不用 Critic，模型怎样判断谁答得更好"><img src="/LLMBlog/img/blog/category-training.png" onerror="this.onerror=null;this.src='/LLMBlog/img/404.jpg'" alt="GRPO 组相对策略优化详解：不用 Critic，模型怎样判断谁答得更好"/></a><div class="content"><a class="title" href="/LLMBlog/posts/GRPO%E7%BB%84%E7%9B%B8%E5%AF%B9%E7%AD%96%E7%95%A5%E4%BC%98%E5%8C%96%E8%AF%A6%E8%A7%A3/" title="GRPO 组相对策略优化详解：不用 Critic，模型怎样判断谁答得更好">GRPO 组相对策略优化详解：不用 Critic，模型怎样判断谁答得更好</a><time datetime="2026-08-27T14:30:00.000Z" title="发表于 2026-08-27 22:30:00">2026-08-27</time></div></div></div></div></div></div></main><footer id="footer"><div class="footer-other"><div class="footer-copyright"><span class="copyright">&copy;&nbsp;2026 By LLM_Learn</span><span class="framework-info"><span>框架 </span><a target="_blank" rel="noopener" href="https://hexo.io">Hexo 8.1.2</a><span class="footer-separator">|</span><span>主题 </span><a target="_blank" rel="noopener" href="https://github.com/jerryc127/hexo-theme-butterfly">Butterfly 5.7.0</a></span></div><div class="footer_custom_text">用 Markdown 记录 LLM 学习之路</div></div></footer></div><div id="rightside"><div id="rightside-config-hide"><button id="readmode" type="button" title="阅读模式"><i class="fas fa-book-open"></i></button><button id="darkmode" type="button" title="日间和夜间模式切换"><i class="fas fa-adjust"></i></button><button id="hide-aside-btn" type="button" title="单栏和双栏切换"><i class="fas fa-arrows-alt-h"></i></button></div><div id="rightside-config-show"><button id="rightside-config" type="button" title="设置"><i class="fas fa-cog fa-spin"></i></button><button class="close" id="mobile-toc-button" type="button" title="目录"><i class="fas fa-list-ul"></i></button><button id="go-up" type="button" title="回到顶部"><span class="scroll-percent"></span><i class="fas fa-arrow-up"></i></button></div></div><div><script src="/LLMBlog/js/utils.js?v=5.7.0"></script><script src="/LLMBlog/js/main.js?v=5.7.0"></script><div class="js-pjax"><script>(() => {
+  const changeScriptToMath = article => {
+    article.querySelectorAll('script[type^="math/tex"]').forEach(el => {
+      const display = /mode=display/.test(el.type)
+      const node = document.createElement(display ? 'div' : 'span')
+      node.textContent = display
+        ? `$$${el.textContent}$$`
+        : `$${el.textContent}$`
+      el.parentNode.replaceChild(node, el)
+    })
+  }
+
+  const loadMathjax = () => {
+    const article = document.getElementById('article-container')
+    if (!article || article.querySelector('.hbe-container')) return
+    changeScriptToMath(article)
+
+    if (!window.MathJax) {
+      window.MathJax = {
+        loader: {
+          load: [
+            // Four font extension packages (optional)
+            //- '[tex]/bbm',
+            //- '[tex]/bboldx',
+            //- '[tex]/dsfont',
+            '[tex]/mhchem',
+            'ui/lazy'
+          ],
+          paths: {
+            'mathjax-newcm': '[mathjax]/../@mathjax/mathjax-newcm-font',
+
+            //- // Four font extension packages (optional)
+            //- 'mathjax-bbm-extension': '[mathjax]/../@mathjax/mathjax-bbm-font-extension',
+            //- 'mathjax-bboldx-extension': '[mathjax]/../@mathjax/mathjax-bboldx-font-extension',
+            //- 'mathjax-dsfont-extension': '[mathjax]/../@mathjax/mathjax-dsfont-font-extension',
+            'mathjax-mhchem-extension': '[mathjax]/../@mathjax/mathjax-mhchem-font-extension'
+          }
+        },
+        output: {
+          font: 'mathjax-newcm',
+        },
+        tex: {
+          inlineMath: [['$', '$'], ['\\(', '\\)']],
+          tags: 'none',
+          packages: {
+            '[+]': [
+              'mhchem'
+            ]
+          }
+        },
+        chtml: {
+          scale: 1.1
+        },
+        options: {
+          lazyMargin: '200px',
+          enableMenu: true,
+          menuOptions: {
+            settings: {
+              enrich: false  // Turn off Braille and voice narration text automatic generation
+            }
+          },
+        }
+      }
+
+      const script = document.createElement('script')
+      script.src = 'https://cdn.jsdelivr.net/npm/mathjax@4.1.3/tex-mml-chtml.min.js'
+      script.id = 'MathJax-script'
+      script.async = true
+      document.head.appendChild(script)
+    } else {
+      MathJax.typesetClear()
+      MathJax.typesetPromise([ article ])
+    }
+  }
+
+  btf.addGlobalFn('encrypt', loadMathjax, 'mathjax')
+  window.pjax ? loadMathjax() : window.addEventListener('load', loadMathjax)
+})()</script></div></div></body></html>
